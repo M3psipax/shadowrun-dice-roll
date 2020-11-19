@@ -88,13 +88,19 @@ const inlineQueryError = function(input) {
    Example: @srrollbot 12x`
 }
 
+const TOO_MANY_DICE_ERROR = "I'm sorry, I don't have that many dice. ;)";
+
 const bot = new Slimbot(TELEGRAM_BOT_TOKEN);
 
 bot.on('message', message => {
   let response = commandError(message.text);
   const command = parseCommand(message.text);
   if (command) {
-    response = doRoll(command.number, command.explode);
+    if (command.number > 1000) {
+      response = TOO_MANY_DICE_ERROR;
+    } else {
+      response = doRoll(command.number, command.explode);
+    }
   }
 
   bot.sendMessage(message.chat.id, response);
@@ -106,9 +112,14 @@ bot.on('inline_query', query => {
   const command = parseQuery(query.query);
   let title = response
   if (!isNaN(command.number)) {
-    title = `roll ${command.number}${command.explode ? ' exploding ' : ''}d6`;
-    const result = doRoll(command.number, command.explode);
-    response = `@srrollbot\n${result}`
+    if (command.number > 1000) {
+      title = TOO_MANY_DICE_ERROR;
+      response = TOO_MANY_DICE_ERROR;
+    } else {
+      title = `roll ${command.number}${command.explode ? ' exploding ' : ''}d6`;
+      const result = doRoll(command.number, command.explode);
+      response = `@srrollbot\n${result}`;
+    }
   }
 
   let results = JSON.stringify([{
