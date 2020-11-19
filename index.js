@@ -13,22 +13,41 @@ const rollDie = function() {
   return 1 + Math.floor(Math.random() * 6);
 }
 
-const roll = function(number) {
-  let result = [];
+const _roll = function(number) {
+  const result = [];
   for (let i = 0; i < number; i++) {
     result.push(rollDie());
   }
   return result;
 }
 
-const doRoll = function(number) {
-  const result = roll(number);
+const roll = function(number, explode) {
+  let result = []
+  _roll(number).map(r => result.push([r]));
+  if (explode) {
+    let i = 0;
+    while((i = result.findIndex(r => r.every(ex => ex === 6))) > -1) {
+      result[i].push(rollDie());
+    }
+  }
+  return result;
+}
+
+const doRoll = function(number, explode) {
+  const result = roll(number, explode);
 
   const dice = number !== 1 ? "dice" : "die";
-  const rollString = `rolling ${number} ${dice}: [${result.join(", ")}]`;
-  const hits = result.filter(d => d > 4).length;
+  let resultString = '[ ';
+  result.forEach((rolls, i) => {
+    rolls.forEach((r, j) => {
+      resultString += j === 0 ? r : `→${r}`
+    })
+    resultString += i === result.length -1 ? ' ]' : ', '
+  })
+  const rollString = `rolling ${number}${explode ? ' exploding ' : ' '}${dice}: ${resultString}`;
+  const hits = result.reduce((acc, rolls) => acc + rolls.reduce((acc, r) => acc + (r >= 5 ? 1 : 0), 0), 0);
   const hitString = hits !== 1 ? `${hits} hits` : `${hits} hit`;
-  const failures = result.filter(d => d === 1).length;
+  const failures = result.filter(r => r[0] === 1).length;
 
   const strings = [rollString, hitString];
   if (failures > (result.length / 2)) {
@@ -39,34 +58,43 @@ const doRoll = function(number) {
   return strings.join("\n");
 }
 
-const isCommand = function(msg) {
-  const match = msg.match(/\/(r|roll)(\s*)(\d+)/i);
-  return (match && match[3]) || false;
+const parseCommand = function(msg) {
+  const match = msg.match(/\/(r|roll)\s*(\d+)\s*(x|explode)?/i);
+  return match ? {
+    command: match[1],
+    number: parseInt(match[2]),
+    explode: !!match[3],
+  } : false;
 }
 
-const isQuery = function(msg) {
-  const match = msg.match(/(\s*)(\d+)/i);
-  return (match && match[2]) || false;
+const parseQuery = function(msg) {
+  const match = msg.match(/\s*(\d+)\s*(x|explode)?/i);
+  return match ? {
+    number: parseInt(match[1]),
+    explode: !!match[2],
+  } : false;
 }
 const commandError = function(input) {
-  return `Didn't understand command: "${input}". Please enter /r or /roll followed by the number of dice. Example: /r 12`
+  return `Didn't understand command: "${input}".
+   Please enter /r or /roll followed by the number of dice. 
+   Optionally add an 'x' or 'explode' behind the number for exploding dice.
+   Example: /r 12x`
 }
 
 const inlineQueryError = function(input) {
-  return `Didn't understand query: "${input}". Please enter @srrollbot followed by the number of dice and click the suggestion. Example: @srrollbot 12`
+  return `Didn't understand query: "${input}".
+   Please enter @srrollbot followed by the number of dice and click the suggestion.
+   Optionally add an 'x' or 'explode' behind the number for exploding dice.
+   Example: @srrollbot 12x`
 }
 
 const bot = new Slimbot(TELEGRAM_BOT_TOKEN);
 
 bot.on('message', message => {
   let response = commandError(message.text);
-  const diceNumber = isCommand(message.text);
-  if (diceNumber) {
-    const number = parseInt(diceNumber);
-    if (isNaN(number)) {
-      return;
-    }
-    response = doRoll(number);
+  const command = parseCommand(message.text);
+  if (command) {
+    response = doRoll(command.number, command.explode);
   }
 
   bot.sendMessage(message.chat.id, response);
@@ -75,12 +103,11 @@ bot.on('message', message => {
 bot.on('inline_query', query => {
   if (query.query === "") return;
   let response = inlineQueryError(query.query);
-  const diceNumber = isQuery(query.query);
-  const number = parseInt(diceNumber);
+  const command = parseQuery(query.query);
   let title = response
-  if (!isNaN(number)) {
-    title = `roll ${number}d6`;
-    const result = doRoll(number);
+  if (!isNaN(command.number)) {
+    title = `roll ${command.number}${command.explode ? ' exploding ' : ''}d6`;
+    const result = doRoll(command.number, command.explode);
     response = `@srrollbot\n${result}`
   }
 
