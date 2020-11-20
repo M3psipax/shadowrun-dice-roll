@@ -33,29 +33,58 @@ const roll = function(rollOptions) {
   return result;
 }
 
-const doRoll = function(rollOptions) {
-  const result = roll(rollOptions);
-
-  const dice = rollOptions.number !== 1 ? "dice" : "die";
+const makeRollString = function(rollResult, rollOptions) {
   let resultString = '[ ';
   const combineChar = rollOptions.target > 6 ? '+' : '→';
-  result.forEach((rolls, i) => {
+  rollResult.forEach((rolls, i) => {
     rolls.forEach((r, j) => {
       resultString += j === 0 ? r : `${combineChar}${r}`
     })
-    resultString += i === result.length -1 ? ' ]' : ', '
+    resultString += i === rollResult.length -1 ? ' ]' : ', '
   })
-  const rollString = `rolling ${rollOptions.number}${rollOptions.explode ? ' exploding ' : ' '}${dice}: ${resultString}`;
-  let hits;
+  return resultString;
+}
+
+const doRoll = function(rollOptions) {
+  let wildString;
+  let hits = 0;
+  if (rollOptions.wild) {
+    const wildOptions = {number: 1, explode: rollOptions.explode};
+    const wildResult = roll(wildOptions);
+    const wildRollString = makeRollString(wildResult, wildOptions);
+    wildString = `Rolling wild die: ${wildRollString}`
+    const wildResultBase = wildResult[0].shift();
+    if (wildResultBase >= 5) {
+      hits += 3; // successful wild die is worth 3 hits
+      wildString += `\nWild die rolls ${wildResultBase} and is worth 3 hits!`
+    } else if (wildResultBase === 1) {
+      rollOptions.target = 6; // wild die failure nullifies all 5s on normal roll
+      wildString += '\nWild die rolls 1 and nullifies all 5s!'
+    }
+    // exploding wild die has usual worth
+    hits += wildResult[0].filter(r => r >= 5).length
+    if (hits > 3) {
+      wildString += `\nWild die explodes and adds another ${hits - 3 > 1 ? `${hits-3} hits` : 'hit'}!`
+    }
+    wildString += '\n';
+  }
+
+  const result = roll(rollOptions);
+
+  const dice = rollOptions.number !== 1 ? "dice" : "die";
+
+  const resultString = makeRollString(result, rollOptions);
+
+  const rollString = `rolling ${rollOptions.number}>${rollOptions.target}${rollOptions.explode ? ' exploding ' : ' '}${dice}: ${resultString}`;
   if (rollOptions.target > 6) { // older sr rules
-    hits = result.reduce((acc, rolls) => acc + Math.floor((rolls.reduce((acc, r) => acc + r) / rollOptions.target)), 0);
+    hits += result.reduce((acc, rolls) => acc + Math.floor((rolls.reduce((acc, r) => acc + r) / rollOptions.target)), 0);
   } else {
-    hits = result.reduce((acc, rolls) => acc + rolls.reduce((acc, r) => acc + (r >= rollOptions.target ? 1 : 0), 0), 0);
+    hits += result.reduce((acc, rolls) => acc + rolls.reduce((acc, r) => acc + (r >= rollOptions.target ? 1 : 0), 0), 0);
   }
   const hitString = hits !== 1 ? `${hits} hits` : `${hits} hit`;
   const failures = result.filter(r => r[0] === 1).length;
 
-  const strings = [rollString, hitString];
+  const strings = [wildString, rollString, hitString];
   if (failures > (result.length / 2)) {
     strings.push(`Glitched! ${failures} failures out of ${result.length}`);
     if (hits === 0) strings.push(`CRITICAL GLITCH!`)
@@ -65,20 +94,20 @@ const doRoll = function(rollOptions) {
 }
 
 const rollCommandRegex = new RegExp(/\/(r|roll)/);
-const modifiersRegex = new RegExp(/\s*(\d+)(>\d+)?\s*(((x|explode)|(w|wild))\s*){0,2}/)
+const modifiersRegex = new RegExp(/\s*(?<number>\d+)(>(?<target>\d+))?\s*(?<explode>x)?\s*(?<wild>w)?/)
 
 const buildRollOptions = function(match) {
   return {
-    number: parseInt(match[1]),
-    target: match[2] ? parseInt(match[2].slice(1)) : 5,
-    explode: !!match[5],
-    wild: !!match[6]
+    number: parseInt(match.groups.number),
+    target: match.groups.target ? parseInt(match.groups.target) : 5,
+    explode: !!match.groups.explode,
+    wild: !!match.groups.wild
   }
 }
 
 const parseCommand = function(msg) {
   const match = msg.match(new RegExp(rollCommandRegex.source+modifiersRegex.source, 'i'));
-  return match ? (match.splice(1, 1, ), buildRollOptions(match)) : false;
+  return match ? buildRollOptions(match) : false;
 }
 
 const parseQuery = function(msg) {
@@ -88,16 +117,38 @@ const parseQuery = function(msg) {
 
 const commandError = function(input) {
   return `Didn't understand command: "${input}".
-   Please enter /r or /roll followed by the number of dice. 
-   Optionally add an 'x' or 'explode' behind the number for exploding dice.
-   Example: /r 12x`
+   Please enter /r or /roll followed by the number of dice.
+   
+   For older Shadowrun versions, 
+    you may add a target value like so: '>10'.
+    
+   Optionally add an 'x' for exploding dice or a 'w' for the wild die.
+   /r [count]{>[target]}{x}{w}
+   
+   Examples: 
+   - /r 12 ➜ roll 12 dice, hits are 5 and above
+   - /r 12x ➜ roll 12 exploding dice, hits are 5 and above
+   - /r 12w ➜ roll 12 dice and a wild die, hits are 5 and above
+   - /r 12xw ➜ roll 12 exploding dice and an exploding wild die, hits are 5 and above
+   - /r 12>10 ➜ roll 12 dice, hits are 10 and above`
 }
 
 const inlineQueryError = function(input) {
   return `Didn't understand query: "${input}".
    Please enter @srrollbot followed by the number of dice and click the suggestion.
-   Optionally add an 'x' or 'explode' behind the number for exploding dice.
-   Example: @srrollbot 12x`
+   
+   For older Shadowrun versions, 
+    you may add a target value like so: '>10'.
+    
+   Optionally add an 'x' for exploding dice or a 'w' for the wild die.
+   /r [count]{>[target]}{x}{w}
+   
+   Examples: 
+   - /r 12 ➜ roll 12 dice, hits are 5 and above
+   - /r 12x ➜ roll 12 exploding dice, hits are 5 and above
+   - /r 12w ➜ roll 12 dice and a wild die, hits are 5 and above
+   - /r 12xw ➜ roll 12 exploding dice and an exploding wild die, hits are 5 and above
+   - /r 12>10 ➜ roll 12 dice, hits are 10 and above`
 }
 
 const TOO_MANY_DICE_ERROR = "I'm sorry, I don't have that many dice. ;)";
@@ -129,7 +180,7 @@ bot.on('inline_query', query => {
       response = TOO_MANY_DICE_ERROR;
     } else {
       title =
-          `roll ${rollOptions.number}${rollOptions.explode ? ' exploding ' : ''}d6${rollOptions.target !== 5 ? '>'+rollOptions.target : ''}`;
+          `roll ${rollOptions.number}${rollOptions.explode ? ' exploding ' : ''}d6${rollOptions.target !== 5 ? '>'+rollOptions.target : ''}${rollOptions.wild ? ' and wild die' : ''}`;
       const result = doRoll(rollOptions);
       response = `@srrollbot\n${result}`;
     }
