@@ -106,11 +106,13 @@ const buildRollOptions = function(match) {
 }
 
 const parseCommand = function(msg) {
+  msg = msg.replace('wx', 'xw');
   const match = msg.match(new RegExp(rollCommandRegex.source+modifiersRegex.source, 'i'));
   return match ? buildRollOptions(match) : false;
 }
 
 const parseQuery = function(msg) {
+  msg = msg.replace('wx', 'xw');
   const match = msg.match(new RegExp(modifiersRegex.source, 'i'));
   return match ? buildRollOptions(match) : false;
 }
