@@ -64,23 +64,26 @@ const doRoll = function(rollOptions) {
   return strings.join("\n");
 }
 
+const rollCommandRegex = new RegExp(/\/(r|roll)/);
+const modifiersRegex = new RegExp(/\s*(\d+)(>\d+)?\s*(((x|explode)|(w|wild))\s*){0,2}/)
+
+const buildRollOptions = function(match) {
+  return {
+    number: parseInt(match[1]),
+    target: match[2] ? parseInt(match[2].slice(1)) : 5,
+    explode: !!match[5],
+    wild: !!match[6]
+  }
+}
+
 const parseCommand = function(msg) {
-  const match = msg.match(/\/(r|roll)\s*(\d+)(>\d+)?\s*(x|explode)?/i);
-  return match ? {
-    command: match[1],
-    number: parseInt(match[2]),
-    target: match[3] ? parseInt(match[3].slice(1)) : 5,
-    explode: !!match[4],
-  } : false;
+  const match = msg.match(new RegExp(rollCommandRegex.source+modifiersRegex.source, 'i'));
+  return match ? (match.splice(1, 1, ), buildRollOptions(match)) : false;
 }
 
 const parseQuery = function(msg) {
-  const match = msg.match(/\s*(\d+)(>\d+)?\s*(x|explode)?/i);
-  return match ? {
-    number: parseInt(match[1]),
-    target: match[2] ? parseInt(match[2].slice(1)) : 5,
-    explode: !!match[3],
-  } : false;
+  const match = msg.match(new RegExp(modifiersRegex.source, 'i'));
+  return match ? buildRollOptions(match) : false;
 }
 
 const commandError = function(input) {
