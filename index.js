@@ -75,7 +75,7 @@ const doRoll = function(rollOptions) {
 
   const resultString = makeRollString(result, rollOptions);
 
-  const rollString = `rolling ${rollOptions.number}>${rollOptions.target}${rollOptions.explode ? ' exploding ' : ' '}${dice}: ${resultString}`;
+  const rollString = `Rolling ${rollOptions.number}>${rollOptions.target}${rollOptions.explode ? ' exploding ' : ' '}${dice}: ${resultString}`;
   if (rollOptions.target > 6) { // older sr rules
     hits += result.reduce((acc, rolls) => acc + Math.floor((rolls.reduce((acc, r) => acc + r) / rollOptions.target)), 0);
   } else {
