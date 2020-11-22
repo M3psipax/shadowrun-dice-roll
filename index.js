@@ -93,6 +93,7 @@ const doRoll = function(rollOptions) {
   return strings.join("\n");
 }
 
+const helpCommandRegex = new RegExp(/\/(help)/);
 const rollCommandRegex = new RegExp(/\/(r|roll)/);
 const modifiersRegex = new RegExp(/\s*(?<number>\d+)(>(?<target>\d+))?\s*(?<explode>x)?\s*(?<wild>w)?/)
 
@@ -103,6 +104,16 @@ const buildRollOptions = function(match) {
     explode: !!match.groups.explode,
     wild: !!match.groups.wild
   }
+}
+
+const hasHelpCommand = function(msg) {
+  const match = msg.match(new RegExp(helpCommandRegex.source, 'i'));
+  return !!match;
+}
+
+const hasRollCommand = function(msg) {
+  const match = msg.match(new RegExp(rollCommandRegex.source, 'i'));
+  return !!match;
 }
 
 const parseCommand = function(msg) {
@@ -117,9 +128,7 @@ const parseQuery = function(msg) {
   return match ? buildRollOptions(match) : false;
 }
 
-const commandError = function(input) {
-  return `Didn't understand command: "${input}".
-   Please enter /r or /roll followed by the number of dice.
+const HELP_TEXT = `Please enter /r or /roll followed by the number of dice.
    
    For older Shadowrun versions, 
     you may add a target value like so: '>10'.
@@ -133,6 +142,10 @@ const commandError = function(input) {
    - /r 12w ➜ roll 12 dice and a wild die, hits are 5 and above
    - /r 12xw ➜ roll 12 exploding dice and an exploding wild die, hits are 5 and above
    - /r 12>10 ➜ roll 12 dice, hits are 10 and above`
+
+const commandError = function(input) {
+  return `Didn't understand command: "${input}".
+   ${HELP_TEXT}`
 }
 
 const inlineQueryError = function(input) {
@@ -158,17 +171,33 @@ const TOO_MANY_DICE_ERROR = "I'm sorry, I don't have that many dice. ;)";
 const bot = new Slimbot(TELEGRAM_BOT_TOKEN);
 
 bot.on('message', message => {
-  let response = commandError(message.text);
-  const rollOptions = parseCommand(message.text);
-  if (rollOptions) {
-    if (rollOptions.number > 1000) {
-      response = TOO_MANY_DICE_ERROR;
-    } else {
-      response = doRoll(rollOptions);
+  const hasHelp = hasHelpCommand(message.text);
+  const hasRoll = hasRollCommand(message.text);
+
+  if (message.chat.type === "private" || hasHelp || hasRoll) {
+    if (!hasHelp && !hasRoll) {
+      bot.sendMessage(message.chat.id, commandError(message.text));
+      return;
+    }
+
+    if (hasHelp) {
+      bot.sendMessage(message.chat.id, HELP_TEXT);
+    }
+
+    if (hasRoll) {
+      let response = commandError(message.text);
+      const rollOptions = parseCommand(message.text);
+      if (rollOptions) {
+        if (rollOptions.number > 1000) {
+          response = TOO_MANY_DICE_ERROR;
+        } else {
+          response = doRoll(rollOptions);
+        }
+      }
+
+      bot.sendMessage(message.chat.id, response);
     }
   }
-
-  bot.sendMessage(message.chat.id, response);
 });
 
 bot.on('inline_query', query => {
