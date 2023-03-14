@@ -236,5 +236,17 @@ bot.on('inline_query', query => {
   bot.answerInlineQuery(query.id, results, {'cache_time': 0});
 });
 
+// stop previous instances
+stop();
 bot.startPolling();
-console.log('startet shadowrun dice roll bot');
+console.log('started shadowrun dice roll bot');
+
+function stop() {
+  if (bot) {
+    console.log('stopping bot');
+    bot.stopPolling();
+  }
+}
+
+process.on('SIGQUIT', stop);
+process.on('SIGINT', stop);
