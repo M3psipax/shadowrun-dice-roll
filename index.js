@@ -90,7 +90,9 @@ const doRoll = function(rollOptions) {
     if (hits === 0) strings.push(`CRITICAL GLITCH!`)
   }
 
-  return strings.join("\n");
+  const response = strings.join("\n");
+  console.log(response);
+  return response;
 }
 
 const helpCommandRegex = new RegExp(/\/(help)/);
@@ -171,6 +173,7 @@ const TOO_MANY_DICE_ERROR = "I'm sorry, I don't have that many dice. ;)";
 const bot = new Slimbot(TELEGRAM_BOT_TOKEN);
 
 bot.on('message', message => {
+  console.log('received message:', message.text);
   const hasHelp = hasHelpCommand(message.text);
   const hasRoll = hasRollCommand(message.text);
 
@@ -201,6 +204,9 @@ bot.on('message', message => {
 });
 
 bot.on('inline_query', query => {
+  if (query.query.length > 0) {
+    console.log('received inline query:', query.query);
+  }
   if (query.query === "") return;
   let response = inlineQueryError(query.query);
   const rollOptions = parseQuery(query.query);
@@ -231,3 +237,4 @@ bot.on('inline_query', query => {
 });
 
 bot.startPolling();
+console.log('startet shadowrun dice roll bot');
